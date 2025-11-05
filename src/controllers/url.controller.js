@@ -150,34 +150,82 @@ export const shortenUrl = asyncHandler(async (req, res) => {
 //   return res.redirect(302, urlDoc.longUrl);
 // });
 
+// export const redirectToUrl = asyncHandler(async (req, res) => {
+//   const { shortCode } = req.params;
+
+//   // 1. Check Cache
+//   const cachedUrl = await redisClient.get(shortCode);
+//   if (cachedUrl) {
+//     // We *could* increment clicks here, but it's safer to do it
+//     // when we are 100% sure it's a valid link from the DB.
+//     // Let's do it on cache miss, or use a separate analytics service.
+//     // For simplicity, we'll increment *after* the DB find.
+
+//     // We'll update this in a moment. For now, just redirect.
+//     return res.redirect(302, cachedUrl);
+//   }
+
+//   // 2. Cache Miss: Find in DB and *increment clicks*
+//   const urlDoc = await Url.findOneAndUpdate(
+//     { shortCode }, // Find by shortCode
+//     { $inc: { clicks: 1 } } // Increment the 'clicks' field by 1
+//   );
+
+//   // 3. Handle Not Found
+//   if (!urlDoc) {
+//     return res.status(404).json({ message: "Short URL not found" });
+//   }
+
+//   // 4. Handle Found (Save to Cache & Redirect)
+//   await redisClient.set(shortCode, urlDoc.longUrl, { EX: 3600 });
+//   return res.redirect(302, urlDoc.longUrl);
+// });
+
+/**
+ * @controller  redirectToUrl
+ * @desc        Finds a shortCode and redirects to its longUrl.
+ * Implements a cache-aside strategy with Redis.
+ * @param {import('express').Request} req - Express request object.
+ * @param {import('express').Response} res - Express response object.
+ * @returns     {Promise<void>}
+ */
 export const redirectToUrl = asyncHandler(async (req, res) => {
   const { shortCode } = req.params;
 
-  // 1. Check Cache
+  // --- 1. Check the Cache (Redis) ---
   const cachedUrl = await redisClient.get(shortCode);
-  if (cachedUrl) {
-    // We *could* increment clicks here, but it's safer to do it
-    // when we are 100% sure it's a valid link from the DB.
-    // Let's do it on cache miss, or use a separate analytics service.
-    // For simplicity, we'll increment *after* the DB find.
 
-    // We'll update this in a moment. For now, just redirect.
-    return res.redirect(302, cachedUrl);
+  if (cachedUrl) {
+    // CACHE HIT: Found in Redis
+
+    // 1. Redirect the user immediately (fast)
+    res.redirect(302, cachedUrl);
+
+    // 2. Asynchronously update the click count (accurate)
+    // We do NOT await this. It's "fire-and-forget."
+    // This runs in the background without slowing the user.
+    Url.updateOne({ shortCode }, { $inc: { clicks: 1 } }).exec();
+
+    return; // Exit the function
   }
 
-  // 2. Cache Miss: Find in DB and *increment clicks*
+  // --- 2. Cache Miss: Check the Database (Mongo) ---
+  // This is the first-time click, so findOneAndUpdate is perfect.
   const urlDoc = await Url.findOneAndUpdate(
-    { shortCode }, // Find by shortCode
+    { shortCode },
     { $inc: { clicks: 1 } } // Increment the 'clicks' field by 1
   );
 
-  // 3. Handle Not Found
+  // --- 3. Handle Not Found ---
   if (!urlDoc) {
     return res.status(404).json({ message: "Short URL not found" });
   }
 
-  // 4. Handle Found (Save to Cache & Redirect)
+  // --- 4. Handle Found (Save to Cache & Redirect) ---
+  // We found it, save it to Redis for next time
   await redisClient.set(shortCode, urlDoc.longUrl, { EX: 3600 });
+
+  // And redirect this user
   return res.redirect(302, urlDoc.longUrl);
 });
 
