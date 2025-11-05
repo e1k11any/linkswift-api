@@ -65,3 +65,43 @@ describe("POST /api/v1/shorten", () => {
     );
   });
 });
+
+describe("GET /:shortCode", () => {
+  let testShortCode = ""; // We'll store our created short code here
+
+  // Before these tests, we need a URL in the database to find.
+  // We'll use our POST endpoint to create one.
+  beforeAll(async () => {
+    // Clean up just in case
+    await Url.deleteMany({});
+
+    // Create a new link to test against
+    const res = await request(app).post("/api/v1/shorten").send({
+      longUrl: "https://www.wikipedia.org",
+    });
+
+    // Extract the short code from the response
+    // res.body.shortUrl is "http://localhost:5000/aB3xYq"
+    // We just want the "aB3xYq" part
+    testShortCode = res.body.shortUrl.split("/").pop();
+  });
+
+  // Test 1: The "Happy Path" (Found)
+  it("should redirect to the long URL if the short code is valid", async () => {
+    const res = await request(app).get(`/${testShortCode}`); // e.g., /aB3xYq
+
+    // 1. Check the Status Code
+    expect(res.statusCode).toEqual(302); // 302 Found (Redirect)
+
+    // 2. Check the "Location" header
+    expect(res.headers.location).toEqual("https://www.wikipedia.org");
+  });
+
+  // Test 2: The "Sad Path" (Not Found)
+  it("should return 404 if the short code does not exist", async () => {
+    const res = await request(app).get("/nonexistentcode");
+
+    // 1. Check the Status Code
+    expect(res.statusCode).toEqual(404); // 404 Not Found
+  });
+});

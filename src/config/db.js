@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import { createClient } from "redis";
 
+import dotenv from "dotenv";
+
+dotenv.config();
+
 // --- MongoDB Connection ---
 const connectDB = async () => {
   try {

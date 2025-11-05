@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import Url from "../models/Url.js";
+import { redisClient } from "../config/db.js";
 
 /**
  * @controller  shortenUrl
@@ -45,6 +46,48 @@ export const shortenUrl = async (req, res) => {
     return res.status(201).json({ shortUrl });
   } catch (error) {
     // Handle potential errors (like a database crash or duplicate shortCode)
+    console.error(error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * @controller  redirectToUrl
+ * @desc        Finds a shortCode and redirects to its longUrl.
+ * Implements a cache-aside strategy with Redis.
+ * @param {import('express').Request} req - Express request object.
+ * @param {import('express').Response} res - Express response object.
+ * @returns     {Promise<void>}
+ */
+export const redirectToUrl = async (req, res) => {
+  try {
+    const { shortCode } = req.params;
+
+    // --- 1. Check the Cache (Redis) ---
+    const cachedUrl = await redisClient.get(shortCode);
+
+    if (cachedUrl) {
+      // CACHE HIT: Found in Redis
+      return res.redirect(302, cachedUrl);
+    }
+
+    // --- 2. Cache Miss: Check the Database (Mongo) ---
+    const urlDoc = await Url.findOne({ shortCode });
+
+    // --- 3. Handle Not Found ---
+    if (!urlDoc) {
+      return res.status(404).json({ message: "Short URL not found" });
+    }
+
+    // --- 4. Handle Found (Save to Cache & Redirect) ---
+
+    // Save to Redis for next time.
+    // We set an 'EX' (expire) of 1 hour (3600s) as an example.
+    await redisClient.set(shortCode, urlDoc.longUrl, { EX: 3600 });
+
+    // Perform the redirect
+    return res.redirect(302, urlDoc.longUrl);
+  } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Server error" });
   }

@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import urlRoutes from "./routes/url.routes.js";
+import redirectRoutes from "./routes/redirect.routes.js";
 
 // Load env vars
 dotenv.config();
@@ -17,7 +18,7 @@ app.get("/", (req, res) => {
 
 // --- API Routes ---
 app.use("/api/v1", urlRoutes);
-
+app.use("/", redirectRoutes);
 // We will add our API routes here
 // app.use('/api/v1', apiRoutes);
 // app.use('/', redirectRoutes);
