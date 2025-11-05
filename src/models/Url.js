@@ -13,12 +13,11 @@ const urlSchema = new mongoose.Schema(
       unique: true, // <-- CRITICAL: This is our index!
       trim: true,
     },
-    // (Optional but good) We'll add this later for analytics
-    // clicks: {
-    //   type: Number,
-    //   required: true,
-    //   default: 0,
-    // },
+    clicks: {
+      type: Number,
+      required: true,
+      default: 0,
+    },
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt

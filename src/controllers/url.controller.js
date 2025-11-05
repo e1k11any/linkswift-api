@@ -126,26 +126,75 @@ export const shortenUrl = asyncHandler(async (req, res) => {
 //   }
 // };
 
+// export const redirectToUrl = asyncHandler(async (req, res) => {
+//   // NO try...catch needed!
+//   const { shortCode } = req.params;
+
+//   // 1. Check the Cache (Redis)
+//   const cachedUrl = await redisClient.get(shortCode);
+//   if (cachedUrl) {
+//     return res.redirect(302, cachedUrl);
+//   }
+
+//   // 2. Cache Miss: Check the Database (Mongo)
+//   const urlDoc = await Url.findOne({ shortCode }); // If this errors, it's caught
+
+//   // 3. Handle Not Found (This is NOT an error, it's a response)
+//   if (!urlDoc) {
+//     // We'll improve this in a bit
+//     return res.status(404).json({ message: "Short URL not found" });
+//   }
+
+//   // 4. Handle Found (Save to Cache & Redirect)
+//   await redisClient.set(shortCode, urlDoc.longUrl, { EX: 3600 });
+//   return res.redirect(302, urlDoc.longUrl);
+// });
+
 export const redirectToUrl = asyncHandler(async (req, res) => {
-  // NO try...catch needed!
   const { shortCode } = req.params;
 
-  // 1. Check the Cache (Redis)
+  // 1. Check Cache
   const cachedUrl = await redisClient.get(shortCode);
   if (cachedUrl) {
+    // We *could* increment clicks here, but it's safer to do it
+    // when we are 100% sure it's a valid link from the DB.
+    // Let's do it on cache miss, or use a separate analytics service.
+    // For simplicity, we'll increment *after* the DB find.
+
+    // We'll update this in a moment. For now, just redirect.
     return res.redirect(302, cachedUrl);
   }
 
-  // 2. Cache Miss: Check the Database (Mongo)
-  const urlDoc = await Url.findOne({ shortCode }); // If this errors, it's caught
+  // 2. Cache Miss: Find in DB and *increment clicks*
+  const urlDoc = await Url.findOneAndUpdate(
+    { shortCode }, // Find by shortCode
+    { $inc: { clicks: 1 } } // Increment the 'clicks' field by 1
+  );
 
-  // 3. Handle Not Found (This is NOT an error, it's a response)
+  // 3. Handle Not Found
   if (!urlDoc) {
-    // We'll improve this in a bit
     return res.status(404).json({ message: "Short URL not found" });
   }
 
   // 4. Handle Found (Save to Cache & Redirect)
   await redisClient.set(shortCode, urlDoc.longUrl, { EX: 3600 });
   return res.redirect(302, urlDoc.longUrl);
+});
+
+/**
+ * @controller  getAllLinks
+ * @desc        Get all URLs with selected fields for analytics
+ * @param {import('express').Request} req - Express request object.
+ * @param {import('express').Response} res - Express response object.
+ * @returns     {Promise<void>}
+ */
+export const getAllLinks = asyncHandler(async (req, res) => {
+  // Find all URLs
+  // .select() allows us to pick which fields to return.
+  // We explicitly *exclude* _id and __v
+  const links = await Url.find()
+    .sort({ createdAt: "asc" })
+    .select("longUrl shortCode clicks createdAt -_id");
+
+  res.status(200).json(links);
 });

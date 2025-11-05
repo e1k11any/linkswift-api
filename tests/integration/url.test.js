@@ -2,7 +2,8 @@ import request from "supertest";
 import app from "../../src/app.js";
 import mongoose from "mongoose";
 import Url from "../../src/models/Url.js";
-import dotenv from "dotenv"; // <-- IMPORT this
+import { redisClient } from "../../src/config/db.js";
+import dotenv from "dotenv";
 
 // Load env vars *for the test environment*
 dotenv.config(); // <-- CALL this at the very top
@@ -26,7 +27,13 @@ beforeAll(async () => {
 
 // We need to close the connection after all tests are done
 afterAll(async () => {
-  await mongoose.disconnect(); // <-- Use disconnect() for a clean exit
+  await mongoose.disconnect();
+  await redisClient.quit(); // <-- ADD THIS
+});
+
+afterEach(async () => {
+  await Url.deleteMany({}); // Clear Mongo
+  await redisClient.flushAll(); // Clear Redis (cache AND rate limits)
 });
 
 // --- The Tests ---
@@ -113,5 +120,41 @@ describe("GET /:shortCode", () => {
 
     // 1. Check the Status Code
     expect(res.statusCode).toEqual(404); // 404 Not Found
+  });
+});
+
+describe("GET /api/v1/links", () => {
+  // Before these tests, we need some data to exist
+  beforeAll(async () => {
+    await Url.deleteMany({}); // Start clean
+
+    // Create a couple of links
+    await Url.create([
+      { longUrl: "https://www.google.com", shortCode: "goog" },
+      { longUrl: "https://www.bing.com", shortCode: "bing" },
+    ]);
+  });
+
+  it("should return all links", async () => {
+    const res = await request(app).get("/api/v1/links");
+
+    // 1. Check status
+    expect(res.statusCode).toEqual(200);
+
+    // 2. Check that it's an array with the right length
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBe(2);
+
+    // 3. Check the shape of the data (no Mongo IDs)
+    expect(res.body[0]).toHaveProperty("longUrl", "https://www.google.com");
+    expect(res.body[0]).toHaveProperty("shortCode", "goog");
+    expect(res.body[0]).not.toHaveProperty("_id");
+    expect(res.body[0]).not.toHaveProperty("__v");
+  });
+
+  // (Optional but good) Test that it's also protected by rate limiting
+  it("should have rate limit headers", async () => {
+    const res = await request(app).get("/api/v1/links");
+    expect(res.headers).toHaveProperty("ratelimit-limit");
   });
 });

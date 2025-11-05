@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { shortenUrl } from "../controllers/url.controller.js";
+import { shortenUrl, getAllLinks } from "../controllers/url.controller.js";
 import {
   shortenUrlRules,
   handleValidationErrors,
@@ -18,6 +18,17 @@ router.post(
   shortenUrlRules,
   handleValidationErrors,
   shortenUrl
+);
+
+/**
+ * @route   GET /api/v1/links
+ * @desc    Get all links for analytics
+ * @access  Public (or protected, but public for now)
+ */
+router.get(
+  "/links",
+  apiLimiter, // Use the same limiter as our POST route
+  getAllLinks
 );
 
 export default router;
