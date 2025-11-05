@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+import urlRoutes from "./routes/url.routes.js";
 
 // Load env vars
 dotenv.config();
@@ -13,6 +14,9 @@ app.use(express.json()); // To parse JSON request bodies
 app.get("/", (req, res) => {
   res.send("LinkSwift API is running... 🚀");
 });
+
+// --- API Routes ---
+app.use("/api/v1", urlRoutes);
 
 // We will add our API routes here
 // app.use('/api/v1', apiRoutes);
