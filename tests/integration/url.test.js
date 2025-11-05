@@ -64,6 +64,16 @@ describe("POST /api/v1/shorten", () => {
       "Invalid URL: Must be a valid URL with http or https protocol"
     );
   });
+
+  it("should return rate limit headers", async () => {
+    const res = await request(app).post("/api/v1/shorten").send({
+      longUrl: "https://www.anotherexample.com",
+    });
+
+    // The middleware adds this header
+    // VVV UPDATE THIS LINE VVV
+    expect(res.headers).toHaveProperty("ratelimit-limit");
+  });
 });
 
 describe("GET /:shortCode", () => {

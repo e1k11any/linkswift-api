@@ -4,7 +4,7 @@ import {
   shortenUrlRules,
   handleValidationErrors,
 } from "../middleware/validators.js";
-
+import { apiLimiter } from "../middleware/rateLimiter.js";
 const router = Router();
 
 /**
@@ -12,6 +12,12 @@ const router = Router();
  * @desc    Create a new short URL
  * @access  Public
  */
-router.post("/shorten", shortenUrlRules, handleValidationErrors, shortenUrl);
+router.post(
+  "/shorten",
+  apiLimiter,
+  shortenUrlRules,
+  handleValidationErrors,
+  shortenUrl
+);
 
 export default router;

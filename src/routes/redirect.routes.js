@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { redirectToUrl } from "../controllers/url.controller.js";
-
+import { redirectLimiter } from "../middleware/rateLimiter.js";
 const router = Router();
 
 /**
@@ -8,6 +8,6 @@ const router = Router();
  * @desc    Redirect to the original long URL
  * @access  Public
  */
-router.get("/:shortCode", redirectToUrl);
+router.get("/:shortCode", redirectLimiter, redirectToUrl);
 
 export default router;
